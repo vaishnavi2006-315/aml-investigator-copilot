@@ -1,0 +1,11 @@
+# Ignore datasets
+data/raw/*.csv
+data/raw/*.zip
+
+# Python
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# Models
+models/
