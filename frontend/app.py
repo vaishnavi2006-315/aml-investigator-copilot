@@ -1,4 +1,5 @@
 import streamlit as st
+from backend.db import get_stats
 
 st.set_page_config(
     page_title="AML Investigator Copilot",
@@ -13,9 +14,11 @@ st.divider()
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Accounts", "6023")
-col2.metric("Transactions", "5000")
-col3.metric("High Risk Accounts", "20")
+accounts, transactions, high_risk = get_stats()
+
+col1.metric("Accounts", accounts)
+col2.metric("Transactions", transactions)
+col3.metric("High Risk Accounts", high_risk)
 
 st.header("Investigation Modules")
 
