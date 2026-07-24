@@ -16,6 +16,8 @@ col1, col2, col3 = st.columns(3)
 
 accounts, transactions, high_risk = get_stats()
 
+accounts, transactions, high_risk = get_stats()
+
 col1.metric("Accounts", accounts)
 col2.metric("Transactions", transactions)
 col3.metric("High Risk Accounts", high_risk)
