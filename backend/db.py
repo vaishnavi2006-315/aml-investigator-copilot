@@ -6,6 +6,7 @@ PASSWORD = "welcometocit"
 
 driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
 
+
 def get_stats():
 
     with driver.session() as session:
@@ -21,10 +22,29 @@ def get_stats():
         """).single()["total"]
 
         high_risk = session.run("""
-        MATCH (a)-[t:TRANSFERRED]->()
-        RETURN count(a) AS total
-        ORDER BY total DESC
-        LIMIT 20
+        MATCH (a)-[:TRANSFERRED]->()
+        RETURN count(DISTINCT a) AS total
         """).single()["total"]
 
     return accounts, transactions, high_risk
+
+
+def search_account(account_id):
+
+    with driver.session() as session:
+
+        result = session.run("""
+        MATCH (a:Account {id:$id})
+
+        OPTIONAL MATCH (a)-[o:TRANSFERRED]->()
+        OPTIONAL MATCH ()-[i:TRANSFERRED]->(a)
+
+        RETURN
+            a.id AS account,
+            count(DISTINCT o) AS outgoing,
+            count(DISTINCT i) AS incoming,
+            coalesce(sum(o.amount),0) AS sent,
+            coalesce(sum(i.amount),0) AS received
+        """, id=account_id)
+
+        return result.single()
