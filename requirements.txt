@@ -1,0 +1,7 @@
+pandas
+numpy
+neo4j
+fastapi
+uvicorn
+streamlit
+requests
