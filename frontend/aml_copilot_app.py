@@ -4,56 +4,252 @@ import pandas as pd
 
 API_URL = "http://127.0.0.1:8000"
 
-st.set_page_config(page_title="AML Investigator Copilot", layout="wide")
+st.set_page_config(
+    page_title="AML Investigator Copilot",
+    layout="wide"
+)
 
 st.title("AML Investigator Copilot")
 st.caption("AI assistant for suspicious account investigation")
 
-summary = requests.get(f"{API_URL}/summary").json()
+# --------------------------------------------------
+# DASHBOARD SUMMARY
+# --------------------------------------------------
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Transactions", summary["total_transactions"])
-c2.metric("Accounts", summary["total_accounts"])
-c3.metric("High Risk", summary["high_risk_accounts"])
-c4.metric("Suspicious", summary["suspicious_accounts"])
+try:
+    summary = requests.get(
+        f"{API_URL}/summary",
+        timeout=5
+    ).json()
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric(
+        "Transactions",
+        summary["total_transactions"]
+    )
+
+    c2.metric(
+        "Accounts",
+        summary["total_accounts"]
+    )
+
+    c3.metric(
+        "High Risk",
+        summary["high_risk_accounts"]
+    )
+
+    c4.metric(
+        "Suspicious",
+        summary["suspicious_accounts"]
+    )
+
+except Exception:
+    st.error(
+        "Cannot connect to FastAPI. "
+        "Make sure the backend is running on port 8000."
+    )
+    st.stop()
+
 
 st.divider()
 
+# --------------------------------------------------
+# ACCOUNT INVESTIGATION
+# --------------------------------------------------
+
 st.subheader("Ask the Copilot")
 
-account_id = st.text_input("Enter Account ID")
+account_id = st.text_input(
+    "Enter Account ID",
+    placeholder="Example: 8014C7B60"
+)
 
-if st.button("Investigate"):
-    data = requests.get(f"{API_URL}/risk/{account_id}").json()
+if st.button("Investigate", type="primary"):
 
-    if "error" in data:
-        st.error("Account not found")
+    if not account_id.strip():
+        st.warning("Please enter an Account ID.")
+
     else:
-        st.success("Investigation completed")
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Risk Score", data["Risk_Score"])
-        col2.metric("Risk Level", data["Risk_Level"])
-        col3.metric("Suspicious", data["Suspicious_Flag"])
+        # ------------------------------------------
+        # RISK DATA
+        # ------------------------------------------
 
-        st.subheader("Copilot Explanation")
+        data = requests.get(
+            f"{API_URL}/risk/{account_id}",
+            timeout=10
+        ).json()
 
-        reasons = str(data["Risk_Reasons"])
+        if "error" in data:
 
-        if reasons == "nan" or reasons.strip() == "":
-            st.write("No strong suspicious reason detected.")
+            st.error("Account not found")
+
         else:
-            for r in reasons.split(";"):
-                st.write("•", r.strip())
 
-        st.subheader("Detected Patterns")
-        st.write("Smurfing:", data["Smurfing_Flag"])
-        st.write("Mule Account:", data["Mule_Flag"])
-        st.write("Known Laundering Account:", data["Known_Laundering_Account"])
+            st.success("Investigation completed")
 
-        st.subheader("Generated AML Report")
+            # --------------------------------------
+            # RISK METRICS
+            # --------------------------------------
 
-        report = f"""
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric(
+                "Risk Score",
+                data["Risk_Score"]
+            )
+
+            col2.metric(
+                "Risk Level",
+                data["Risk_Level"]
+            )
+
+            col3.metric(
+                "Suspicious",
+                data["Suspicious_Flag"]
+            )
+
+            # --------------------------------------
+            # COPILOT EXPLANATION
+            # --------------------------------------
+
+            st.subheader("Copilot Explanation")
+
+            reasons = str(
+                data.get("Risk_Reasons", "")
+            )
+
+            if reasons == "nan" or reasons.strip() == "":
+                st.write(
+                    "No strong suspicious reason detected."
+                )
+            else:
+
+                for reason in reasons.split(";"):
+                    if reason.strip():
+                        st.write(
+                            "•",
+                            reason.strip()
+                        )
+
+            # --------------------------------------
+            # DETECTED PATTERNS
+            # --------------------------------------
+
+            st.subheader("Detected Patterns")
+
+            p1, p2, p3 = st.columns(3)
+
+            p1.metric(
+                "Smurfing",
+                data.get("Smurfing_Flag", "N/A")
+            )
+
+            p2.metric(
+                "Mule Account",
+                data.get("Mule_Flag", "N/A")
+            )
+
+            p3.metric(
+                "Known Laundering",
+                data.get(
+                    "Known_Laundering_Account",
+                    "N/A"
+                )
+            )
+
+            # --------------------------------------
+            # NEO4J TRANSACTION GRAPH
+            # --------------------------------------
+
+            st.subheader(
+                "Transaction Network"
+            )
+
+            graph_response = requests.get(
+                f"{API_URL}/graph/{account_id}",
+                timeout=10
+            )
+
+            if graph_response.status_code == 200:
+
+                graph_data = graph_response.json()
+
+                nodes = graph_data.get(
+                    "nodes",
+                    []
+                )
+
+                relationships = graph_data.get(
+                    "relationships",
+                    []
+                )
+
+                if nodes:
+
+                    graph_rows = []
+
+                    for relationship in relationships:
+
+                        graph_rows.append({
+                            "From": relationship["source"],
+                            "To": relationship["target"],
+                            "Amount": relationship["amount"]
+                        })
+
+                    if graph_rows:
+
+                        graph_df = pd.DataFrame(
+                            graph_rows
+                        )
+
+                        st.dataframe(
+                            graph_df,
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+                        st.caption(
+                            f"Connected accounts found: "
+                            f"{len(nodes)}"
+                        )
+
+                    else:
+
+                        st.info(
+                            "No transaction relationships "
+                            "found for this account."
+                        )
+
+                else:
+
+                    st.info(
+                        "No connected transaction accounts found."
+                    )
+
+            else:
+
+                st.warning(
+                    "Unable to retrieve transaction network."
+                )
+
+            # --------------------------------------
+            # AML REPORT
+            # --------------------------------------
+
+            st.subheader(
+                "Generated AML Report"
+            )
+
+            recommendation = (
+                "Escalate for manual AML review."
+                if data["Suspicious_Flag"]
+                else
+                "Continue monitoring."
+            )
+
+            report = f"""
 AML INVESTIGATION REPORT
 
 Account ID: {data['Account']}
@@ -62,7 +258,8 @@ Risk Score: {data['Risk_Score']}/100
 Risk Level: {data['Risk_Level']}
 
 Summary:
-This account was analyzed using transaction behavior, laundering labels, and suspicious activity indicators.
+This account was analyzed using transaction behavior,
+laundering labels, and suspicious activity indicators.
 
 Reasons:
 {data['Risk_Reasons']}
@@ -74,14 +271,58 @@ Red Flags:
 - Suspicious Flag: {data['Suspicious_Flag']}
 
 Recommendation:
-{"Escalate for manual AML review." if data["Suspicious_Flag"] else "Continue monitoring."}
+{recommendation}
 """
 
-        st.text_area("Report", report, height=350)
+            st.text_area(
+                "Report",
+                report,
+                height=350
+            )
+
+            # --------------------------------------
+            # DOWNLOAD REPORT
+            # --------------------------------------
+
+            st.download_button(
+                label="Download AML Report",
+                data=report,
+                file_name=f"AML_Report_{account_id}.txt",
+                mime="text/plain"
+            )
+
+
+# --------------------------------------------------
+# HIGH RISK ACCOUNTS
+# --------------------------------------------------
 
 st.divider()
 
 st.subheader("High Risk Accounts")
 
-high_risk = requests.get(f"{API_URL}/high-risk").json()
-st.dataframe(pd.DataFrame(high_risk), use_container_width=True)
+high_risk_response = requests.get(
+    f"{API_URL}/high-risk",
+    timeout=10
+)
+
+if high_risk_response.status_code == 200:
+
+    high_risk = high_risk_response.json()
+
+    if high_risk:
+
+        high_risk_df = pd.DataFrame(
+            high_risk
+        )
+
+        st.dataframe(
+            high_risk_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+
+        st.info(
+            "No high-risk accounts found."
+        )
