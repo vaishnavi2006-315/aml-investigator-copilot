@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
+from backend.graph_api import router as graph_router
 
 app = FastAPI(title="AML Investigator Copilot API")
+
+app.include_router(graph_router)
 
 app.add_middleware(
     CORSMiddleware,
